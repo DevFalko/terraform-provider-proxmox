@@ -208,3 +208,4 @@ Proxmox `provider` block:
       specified multiple times to provide configuration fo multiple nodes.
         - `name` - (Required) The name of the node.
         - `address` - (Required) The IP address of the node.
+    - `port` - (Optional) The port used for the SSH connection. Defaults to 22.

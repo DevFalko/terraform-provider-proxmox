@@ -5,5 +5,6 @@ provider "proxmox" {
   insecure = true
   ssh {
     agent = true
+    port = 22 # SSH default port
   }
 }

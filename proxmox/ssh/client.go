@@ -43,13 +43,14 @@ type client struct {
 	agent       bool
 	agentSocket string
 	nodeLookup  NodeResolver
+	port        int64
 }
 
 // NewClient creates a new SSH client.
 func NewClient(
 	username string, password string,
 	agent bool, agentSocket string,
-	nodeLookup NodeResolver,
+	nodeLookup NodeResolver, port int64,
 ) (Client, error) {
 	//goland:noinspection GoBoolExpressions
 	if agent && runtime.GOOS != "linux" && runtime.GOOS != "darwin" && runtime.GOOS != "freebsd" {
@@ -69,18 +70,22 @@ func NewClient(
 		agent:       agent,
 		agentSocket: agentSocket,
 		nodeLookup:  nodeLookup,
+		port:        port,
 	}, nil
 }
 
 // ExecuteNodeCommands executes commands on a given node.
 func (c *client) ExecuteNodeCommands(ctx context.Context, nodeName string, commands []string) error {
 	ip, err := c.nodeLookup.Resolve(ctx, nodeName)
+	port := c.port
+
 	if err != nil {
 		return fmt.Errorf("failed to find node endpoint: %w", err)
 	}
 
 	tflog.Debug(ctx, "executing commands on the node using SSH", map[string]interface{}{
 		"node_address": ip,
+		"node_port":    port,
 		"commands":     commands,
 	})
 
@@ -214,11 +219,17 @@ func (c *client) NodeUpload(
 // openNodeShell establishes a new SSH connection to a node.
 func (c *client) openNodeShell(ctx context.Context, nodeAddress string) (*ssh.Client, error) {
 	homeDir, err := os.UserHomeDir()
+	port := c.port
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine the home directory: %w", err)
 	}
 
-	sshHost := fmt.Sprintf("%s:22", nodeAddress)
+	if port == 0 {
+		port = 22
+	}
+
+	sshHost := fmt.Sprintf("%s:%d", nodeAddress, port)
 
 	sshPath := path.Join(homeDir, ".ssh")
 	if _, err = os.Stat(sshPath); os.IsNotExist(err) {
@@ -298,6 +309,7 @@ func (c *client) openNodeShell(ctx context.Context, nodeAddress string) (*ssh.Cl
 	tflog.Debug(ctx, "SSH connection established", map[string]interface{}{
 		"host": sshHost,
 		"user": c.username,
+		"port": c.port,
 	})
 
 	return sshClient, nil
@@ -337,6 +349,7 @@ func (c *client) createSSHClientAgent(
 	tflog.Debug(ctx, "SSH connection established", map[string]interface{}{
 		"host": sshHost,
 		"user": c.username,
+		"port": c.port,
 	})
 
 	return sshClient, nil

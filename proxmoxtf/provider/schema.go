@@ -27,6 +27,7 @@ const (
 	mkProviderSSHPassword    = "password"
 	mkProviderSSHAgent       = "agent"
 	mkProviderSSHAgentSocket = "agent_socket"
+	mkProviderSSHPort        = "port"
 
 	mkProviderSSHNode        = "node"
 	mkProviderSSHNodeName    = "name"
@@ -157,6 +158,18 @@ func createSchema() map[string]*schema.Schema {
 								},
 							},
 						},
+					},
+					mkProviderSSHPort: {
+						Type:     schema.TypeInt,
+						Optional: true,
+						Description: "The port used for the SSH connection. " +
+								"Defaults to the SSH default port 22.",
+						Default: 22,
+						DefaultFunc: schema.MultiEnvDefaultFunc(
+							[]string{"PROXMOX_VE_SSH_PORT", "PM_VE_SSH_PORT"},
+							nil,
+						),
+						ValidateFunc: validation.IntBetween(0, 65535),
 					},
 				},
 			},

@@ -64,6 +64,7 @@ type proxmoxProviderModel struct {
 		AgentSocket types.String `tfsdk:"agent_socket"`
 		Password    types.String `tfsdk:"password"`
 		Username    types.String `tfsdk:"username"`
+		Port        types.Int64  `tfsdk:"port"`
 
 		Nodes []struct {
 			Name    types.String `tfsdk:"name"`
@@ -151,6 +152,11 @@ func (p *proxmoxProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 							Description: "The username used for the SSH connection. " +
 								"Defaults to the value of the `username` field of the " +
 								"`provider` block.",
+							Optional: true,
+						},
+						"port": schema.Int64Attribute{
+							Description: "The port used for the SSH connection. " +
+								"Defaults to the SSH default port 22.",
 							Optional: true,
 						},
 					},
@@ -291,6 +297,7 @@ func (p *proxmoxProvider) Configure(
 	sshPassword := utils.GetAnyStringEnv("PROXMOX_VE_SSH_PASSWORD")
 	sshAgent := utils.GetAnyBoolEnv("PROXMOX_VE_SSH_AGENT")
 	sshAgentSocket := utils.GetAnyStringEnv("SSH_AUTH_SOCK", "PROXMOX_VE_SSH_AUTH_SOCK")
+	sshPort := utils.GetAnyInt64Env("PROXMOX_VE_SSH_PORT")
 	nodeOverrides := map[string]string{}
 
 	if len(config.SSH) > 0 {
@@ -313,6 +320,10 @@ func (p *proxmoxProvider) Configure(
 		for _, n := range config.SSH[0].Nodes {
 			nodeOverrides[n.Name.ValueString()] = n.Address.ValueString()
 		}
+
+		if !config.SSH[0].Port.IsNull() {
+			sshPort = config.SSH[0].Port.ValueInt64()
+		}
 	}
 
 	if sshUsername == "" {
@@ -323,12 +334,16 @@ func (p *proxmoxProvider) Configure(
 		sshPassword = creds.Password
 	}
 
+	if sshPort < 1 || sshPort > 65535 {
+		sshPort = 22
+	}
+
 	sshClient, err := ssh.NewClient(
 		sshUsername, sshPassword, sshAgent, sshAgentSocket,
 		&apiResolverWithOverrides{
 			ar:        apiResolver{c: apiClient},
 			overrides: nodeOverrides,
-		},
+		}, sshPort,
 	)
 	if err != nil {
 		resp.Diagnostics.AddError(

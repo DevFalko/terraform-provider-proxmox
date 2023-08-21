@@ -31,7 +31,7 @@ func ProxmoxVirtualEnvironment() *schema.Provider {
 	}
 }
 
-func providerConfigure(_ context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	var err error
 
 	var diags diag.Diagnostics
@@ -104,6 +104,7 @@ func providerConfigure(_ context.Context, d *schema.ResourceData) (interface{}, 
 	sshPassword := utils.GetAnyStringEnv("PROXMOX_VE_SSH_PASSWORD", "PM_VE_SSH_PASSWORD")
 	sshAgent := utils.GetAnyBoolEnv("PROXMOX_VE_SSH_AGENT", "PM_VE_SSH_AGENT")
 	sshAgentSocket := utils.GetAnyStringEnv("SSH_AUTH_SOCK", "PROXMOX_VE_SSH_AUTH_SOCK", "PM_VE_SSH_AUTH_SOCK")
+	sshPort := utils.GetAnyInt64Env("PROXMOX_VE_SSH_PORT", "PM_VE_SSH_PORT")
 
 	if v, ok := sshConf[mkProviderSSHUsername]; !ok || v.(string) == "" {
 		if sshUsername != "" {
@@ -129,6 +130,15 @@ func providerConfigure(_ context.Context, d *schema.ResourceData) (interface{}, 
 		sshConf[mkProviderSSHAgentSocket] = sshAgentSocket
 	}
 
+	if _, ok := sshConf[mkProviderSSHPort]; !ok {
+		if sshPort > 0 && sshPort < 65536 {
+			sshConf[mkProviderSSHPort] = sshPort	
+		} else {
+			sshConf[mkProviderSSHPort] = 22
+		}
+	}
+	sshConf[mkProviderSSHPort] = int64(sshConf[mkProviderSSHPort].(int))
+
 	nodeOverrides := map[string]string{}
 
 	if ns, ok := sshConf[mkProviderSSHNode]; ok {
@@ -147,6 +157,7 @@ func providerConfigure(_ context.Context, d *schema.ResourceData) (interface{}, 
 			ar:        apiResolver{c: apiClient},
 			overrides: nodeOverrides,
 		},
+		sshConf[mkProviderSSHPort].(int64),
 	)
 	if err != nil {
 		return nil, diag.Errorf("error creating SSH client: %s", err)
